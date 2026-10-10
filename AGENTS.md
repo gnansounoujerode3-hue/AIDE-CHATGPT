@@ -5,5 +5,6 @@
 - Process media locally by default, keep original files unchanged, and never upload private rushes to a cloud service without explicit authorization.
 - Do not invent dialogue, subtitles, claims, prices, offers, music, logos, or calls to action. Use subtitles only when the transcript is supplied or can be verified.
 - If the platform is unspecified, preserve a suitable source aspect ratio and export MP4 with H.264 video and AAC audio.
-- Before running the skill, confirm `ffmpeg` and `ffprobe` are on `PATH`; the skill does not bundle these executables. Use its `doctor` check for capability gaps, and never bypass TLS verification to fetch a binary.
+- This skill does not bundle FFmpeg executables. Run `scripts/setup_video_tools.sh` once, then invoke skill commands through `scripts/video-tools.sh` so the project-local binaries are on `PATH`. `.video-tools/` is generated and ignored; do not commit its binaries.
+- Use the skill's `doctor` check for capability gaps, and never bypass TLS verification to fetch a binary.
 - Verify each real export with `ffprobe` (or an equivalent), decode-check it, and inspect representative frames before claiming it is complete.
