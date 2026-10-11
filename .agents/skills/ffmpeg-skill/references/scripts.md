@@ -1075,9 +1075,13 @@ because it does not use harfbuzz. Since 1.15 `--text-render auto` (the default)
 therefore routes those scripts through libass: the template's geometry is written
 as a generated `<output>_gfx.ass` (`--write-ass PATH` names it) and burned with
 `ass=`, reported as `text_renderer: "ass"` with `script` and `ass` in the JSON.
-Latin/CJK/Arabic frames are pixel-identical to 1.14 (the drawtext command
-line is not: since 1.15 every drawn label is passed as `textfile=<tmp>:expansion=none`
-rather than `text=`, so a `--dry-run` compared against 1.14 differs by design). `--text-render ass` forces the
+If the active FFmpeg build has no `drawtext` filter, `auto` uses libass for all
+template text instead; the doctor requires `ass` for graphics and treats
+drawtext as optional for an explicitly requested drawtext render.
+When drawtext is available and selected, Latin/CJK/Arabic frames are
+pixel-identical to 1.14 (the drawtext command line is not: since 1.15 every drawn
+label is passed as `textfile=<tmp>:expansion=none` rather than `text=`, so a
+`--dry-run` compared against 1.14 differs by design). `--text-render ass` forces the
 route; `--text-render drawtext` with a shaping script is refused by name rather
 than rendering a wrong frame. See `references/gotchas.md#fonts-by-script`.
 `--emoji*` works as on `caption.py` below; a template whose text is *only* emoji
@@ -1086,8 +1090,9 @@ be blank. `--emoji none` strips the clusters from the drawn text, and a job whos
 emoji would fall to `mode: mono` is routed through libass (which has a font
 fallback chain) instead of drawtext (which does not, and would draw an empty box).
 
-Every drawn label goes to drawtext as `textfile=<path>:expansion=none`. The file
-is UTF-8, mode 0600, in a private per-run temp directory created with
+On the drawtext route, every drawn label goes to drawtext as
+`textfile=<path>:expansion=none`. The file is UTF-8, mode 0600, in a private
+per-run temp directory created with
 `tempfile.mkdtemp()`, written only when the command that names it actually runs
 (so `--dry-run` and the ASS route write nothing) and removed when the process
 ends. A plan printed by `--dry-run` therefore names a path that does not exist.

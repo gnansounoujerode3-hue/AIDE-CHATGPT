@@ -183,9 +183,12 @@ libass does. Since 1.15 `graphics.py` therefore renders a shaping script
 (`hi bn ta te kn ml gu pa si th lo km my`) through libass automatically — one
 generated `<output>_gfx.ass` next to the file, `text_renderer: "ass"` in the
 JSON — and `--text-render auto|ass|drawtext` overrides it; `--text-render
-drawtext` with such a script is a refusal, not a wrong frame. Latin, CJK and
-Arabic output is unchanged. `overlay.py --text` has no ASS route yet and refuses
-a shaping script, naming `caption.py`/`graphics.py`.
+drawtext` with such a script is a refusal, not a wrong frame. When drawtext is
+available and selected, Latin, CJK and Arabic output is unchanged. If the active
+FFmpeg build lacks `drawtext`,
+`graphics.py --text-render auto` uses libass for all template text; explicitly
+forcing `--text-render drawtext` still requires the filter. `overlay.py --text`
+has no ASS route yet and refuses a shaping script, naming `caption.py`/`graphics.py`.
 
 ### Emoji
 Colour emoji need **either** a libass that can draw colour glyphs **or** a

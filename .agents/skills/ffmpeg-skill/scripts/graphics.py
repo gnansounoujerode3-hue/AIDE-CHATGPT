@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Motion-graphics templates rendered with drawbox/drawtext expressions —
+"""Motion-graphics templates rendered with FFmpeg filters (drawbox plus drawtext/libass text) —
 no After Effects, no image assets, brand colours from brand.json.
 
 Templates:
@@ -28,6 +28,8 @@ Examples:
 import argparse
 import os
 import re
+import shutil
+import subprocess
 import sys
 from typing import List, Optional
 
@@ -43,6 +45,26 @@ from _common import (aac_args, add_common, brand_caption_style, script_font_for_
 from _ass_overlay import text_overlay_ass, EMOJI_SENTINEL
 
 TEMPLATES = ["lower-third", "title", "chapter", "progress", "countdown", "bug", "sticker", "hook", "meme"]
+
+
+def _ffmpeg_has_filter(name: str) -> bool:
+    """Whether the ffmpeg on PATH lists a named filter; auto can fall back to libass."""
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        return False
+    try:
+        proc = subprocess.run([exe, "-hide_banner", "-filters"], stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                              timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if proc.returncode != 0:
+        return False
+    for line in proc.stdout.splitlines():
+        columns = line.split()
+        if len(columns) >= 2 and columns[1] == name:
+            return True
+    return False
 
 
 def ff_color(hex_rgb: str, alpha: float = 1.0) -> str:
@@ -100,11 +122,11 @@ def main() -> int:
                          "already fits one line is untouched either way")
     ap.add_argument("--text-render", choices=["auto", "ass", "drawtext"], default="auto",
                     help="which renderer draws the template's text: 'auto' (default) uses libass for "
-                         "scripts drawtext cannot shape (Devanagari, Bengali, Tamil, Thai, Lao ...) and for "
-                         "emoji overlays, and drawtext for everything else -- Latin/CJK/Arabic frames are "
-                         "pixel-identical to 1.14 (the drawtext command itself changed: the label is "
-                         "passed as textfile=, not text=); 'ass' always uses libass; 'drawtext' forces the old renderer and is "
-                         "refused for a script it cannot shape")
+                         "scripts drawtext cannot shape (Devanagari, Bengali, Tamil, Thai, Lao ...), emoji "
+                         "overlays, and as a fallback when this FFmpeg build lacks drawtext; otherwise "
+                         "drawtext renders everything else -- Latin/CJK/Arabic frames are pixel-identical "
+                         "to 1.14 (the label is now passed as textfile=, not text=); 'ass' always uses "
+                         "libass; 'drawtext' forces the old renderer and is refused for a script it cannot shape")
     ap.add_argument("--write-ass", metavar="PATH",
                     help="where to save the generated ASS when the libass route is used (default: <output stem>_gfx.ass)")
     emo = ap.add_argument_group("emoji (1.15)")
@@ -187,7 +209,8 @@ def main() -> int:
     # drawtext does bidi and Arabic joining on a fribidi build, but it never reorders or
     # re-clusters (no harfbuzz), so Indic matras and Thai/Lao mark stacking come out wrong on
     # every build. Those scripts -- and any run that has to reserve a gap for an emoji PNG -- go
-    # through libass instead; everything else keeps the exact drawtext graph 1.14 produced.
+    # through libass instead; everything else keeps the exact drawtext graph 1.14 produced when
+    # the filter is available, with libass as the fallback on builds that omit drawtext.
     all_text = " ".join(t for t in (args.name, args.title, args.subtitle, args.text, args.top, args.bottom) if t)
     shaping = needs_shaping(_script)
     emoji_assets = resolve_emoji_assets(args.emoji_assets, None, brand if args.brand else None)
@@ -206,8 +229,11 @@ def main() -> int:
             "build (the marks are reordered by harfbuzz, which drawtext does not use): drop "
             "--text-render drawtext to render it through libass, or draw it with caption.py",
             kind="input")
-    route = "ass" if (args.text_render == "ass" or
-                      (args.text_render == "auto" and (shaping or emoji_mode == "png"))) else "drawtext"
+    auto_ass = args.text_render == "auto" and (shaping or emoji_mode == "png")
+    if args.text_render == "auto" and not auto_ass and not _ffmpeg_has_filter("drawtext"):
+        auto_ass = True
+        info("drawtext is unavailable in this FFmpeg build; using libass for the template text")
+    route = "ass" if args.text_render == "ass" or auto_ass else "drawtext"
     # drawtext loads exactly ONE font file and has no fallback chain, so "whatever glyph the text
     # font has" for an emoji is an empty box on DejaVu Sans and on every script font: reporting
     # mode "mono" from the drawtext route is a claim the frame does not keep. libass DOES have a

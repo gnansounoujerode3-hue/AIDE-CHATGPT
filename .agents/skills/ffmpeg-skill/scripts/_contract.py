@@ -155,7 +155,8 @@ TOOL_META: Dict[str, Dict[str, Any]] = {
                     required=FF + [X264, AAC], optional=[{"capability": "filter:drawtext", "when": "--text"}, {"capability": "filter:chromakey", "when": "--chromakey"}, HDR_X265],
                     video_required=True, audio_only=False, visual=True, verify=["probe", "look"], produces_artifact=True, idempotency="content_equivalent", deterministic=True),
     "graphics": dict(role="execution", inputs=["video asset"], outputs=["video artifact with the drawn template"],
-                     required=FF + [X264, AAC, "filter:drawtext"], optional=[HDR_X265],
+                     required=FF + [X264, AAC, "filter:ass"],
+                     optional=[{"capability": "filter:drawtext", "when": "--text-render drawtext; auto falls back to libass when unavailable"}, HDR_X265],
                      video_required=True, audio_only=False, visual=True, verify=["probe", "look"], produces_artifact=True, idempotency="content_equivalent", deterministic=True),
     "sync": dict(role="analysis_and_execution", inputs=["reference recording (video or audio)", "second recording (video or audio)"], outputs=["offset / drift JSON on stdout", "aligned artifact with --replace-audio / --trim-second / --fix-drift -o"],
                  required=FF, optional=[{"capability": AAC, "when": "writing a video container"}] + AUDIO_OUT,
@@ -845,9 +846,10 @@ def doctor() -> Dict[str, Any]:
     only proves the build shipped the capability, never that the GPU/driver on this machine will
     actually accept a job (that needs a real encode, which this introspection never runs).
 
-    `fonts` is the same kind of informational answer for the default drawtext font (caption.py's
-    --animate/--karaoke, graphics.py's templates -- see issue #66): available/missing/unknown for
-    whether BRAND_DEFAULTS["font"] ("DejaVu Sans") is actually installed, not silently substituted
+    `fonts` is the same kind of informational answer for the default text font (caption.py's
+    --animate/--karaoke and graphics.py's templates, rendered through drawtext or libass -- see
+    issue #66): available/missing/unknown for whether BRAND_DEFAULTS["font"] ("DejaVu Sans") is
+    actually installed, not silently substituted
     by fontconfig. It never affects `ok` or a tool's `usable` -- a missing font is not a broken
     tool, drawtext still runs and still writes an artifact, it may just render with a different
     typeface than requested (which is why this exists: that substitution is otherwise invisible).
@@ -936,8 +938,9 @@ def doctor() -> Dict[str, Any]:
 
 
 def _fonts_capability(probe: bool = True) -> Dict[str, Any]:
-    """The default drawtext family (issue #66) plus, since 1.12, one entry per script the tools
-    can detect: which languages this machine can actually RENDER, not just which filters exist.
+    """The default text family (drawtext/libass, issue #66) plus, since 1.12, one entry per
+    script the tools can detect: which languages this machine can actually RENDER, not just which
+    filters exist.
 
     Per script: available (a font file covers it, path in `file`), missing (fontconfig knows none),
     unknown (no fontconfig to ask -- the same "unknown is not missing" rule every other capability
